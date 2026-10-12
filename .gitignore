@@ -19,8 +19,18 @@ pnpm-debug.log*
 
 # Environment files
 .env
+.env.*
 .env*.local
 !.env.example
+!.env.*.example
+
+# Credentials & Secrets
+*.pem
+*.key
+*.cert
+*.crt
+id_rsa*
+cookies*.txt
 
 # IDE & OS
 .DS_Store
@@ -29,12 +39,23 @@ Thumbs.db
 !.vscode/extensions.json
 !.vscode/settings.json
 .idea/
+*.suo
+*.ntvs*
+*.njsproj
 
-# Coverage
+# Turbo & Cache
+.turbo/
+.cache/
+
+# Coverage & Test Artifacts
 coverage/
 *.lcov
 .nyc_output/
+test-results/
+playwright-report/
+blob-report/
 
 # Temporary / Scratch
 tmp/
 temp/
+scratch/

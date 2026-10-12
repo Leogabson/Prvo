@@ -59,12 +59,13 @@ export function createApp(): Express {
     }),
   );
 
-  // Global rate limiter
+  // Global rate limiter (excluding GET /health and GET /ready)
   const limiter = rateLimit({
     windowMs: 15 * 60 * 1000, // 15 minutes
     max: 100, // Limit each IP to 100 requests per window
     standardHeaders: true,
     legacyHeaders: false,
+    skip: (req) => req.method === 'GET' && (req.path === '/health' || req.path === '/ready'),
     message: {
       error: {
         code: 'RATE_LIMIT_EXCEEDED',

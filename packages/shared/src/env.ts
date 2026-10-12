@@ -44,31 +44,15 @@ const postgresUrlSchema = cleanString
  */
 export const nodeEnvSchema = z.enum(['development', 'production', 'test']).default('development');
 
-/**
- * Express API environment schema
- */
-export const apiEnvSchema = z
-  .preprocess((val) => {
-    if (val && typeof val === 'object') {
-      const copy = { ...(val as Record<string, unknown>) };
-      if (!copy.DATABASE_URL_UNPOOLED && copy.DATABASE_URL) {
-        copy.DATABASE_URL_UNPOOLED = copy.DATABASE_URL;
-      }
-      if (copy.DATABASE_URL_POOLED && !copy.DATABASE_URL) {
-        copy.DATABASE_URL = copy.DATABASE_URL_POOLED;
-      }
-      return copy;
-    }
-    return val;
-  }, z.object({
-    NODE_ENV: nodeEnvSchema,
-    PORT: z
-      .string()
-      .default('4000')
-      .transform((val) => parseInt(val, 10))
-      .pipe(z.number().int().positive().max(65535)),
-    DATABASE_URL: postgresUrlSchema,
-    DATABASE_URL_UNPOOLED: postgresUrlSchema,
+export const apiEnvSchema = z.object({
+  NODE_ENV: nodeEnvSchema,
+  PORT: z
+    .string()
+    .default('4000')
+    .transform((val) => parseInt(val, 10))
+    .pipe(z.number().int().positive().max(65535)),
+  DATABASE_URL: postgresUrlSchema,
+  DATABASE_URL_UNPOOLED: postgresUrlSchema.optional(),
     APP_URL: urlSchema.default(DEFAULT_APP_URL),
     API_URL: urlSchema.default(DEFAULT_API_URL),
     LANDING_URL: urlSchema.default(DEFAULT_LANDING_URL),
@@ -85,7 +69,7 @@ export const apiEnvSchema = z
     BRAVE_API_KEY: z.string().optional(),
     GOOGLE_CLIENT_ID: z.string().optional(),
     GOOGLE_CLIENT_SECRET: z.string().optional(),
-  }))
+  })
   .superRefine((data, ctx) => {
     if (data.NODE_ENV === 'production') {
       const requiredInProd: (keyof typeof data)[] = [
@@ -124,6 +108,16 @@ export const webEnvSchema = z.object({
 });
 
 export type WebEnv = z.infer<typeof webEnvSchema>;
+
+/**
+ * Migration runner environment schema.
+ * Migration runner uses DATABASE_URL_UNPOOLED ONLY and must never fall back to DATABASE_URL.
+ */
+export const migrationEnvSchema = z.object({
+  DATABASE_URL_UNPOOLED: postgresUrlSchema,
+});
+
+export type MigrationEnv = z.infer<typeof migrationEnvSchema>;
 
 /**
  * Validates environment variables against a schema and throws descriptive, formatted error if invalid.

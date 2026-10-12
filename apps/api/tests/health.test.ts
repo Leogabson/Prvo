@@ -60,4 +60,32 @@ describe('API Health and Readiness Endpoints', () => {
     expect(res.body.error.code).toBe('NOT_FOUND');
     expect(res.body.error.requestId).toBeDefined();
   });
+
+  it('rate limiter excludes GET /health: 120 requests still return 200', async () => {
+    const responses = await Promise.all(
+      Array.from({ length: 120 }, () => request(app).get('/health')),
+    );
+
+    expect(responses).toHaveLength(120);
+    for (const res of responses) {
+      expect(res.status).toBe(200);
+      expect(res.body.status).toBe('ok');
+    }
+  });
+
+  it('rate limiter enforces limit on other routes: returns 429 after the limit', async () => {
+    const rateLimitApp = createApp();
+    // Send 100 requests to another route to hit the limit
+    for (let i = 0; i < 100; i++) {
+      const res = await request(rateLimitApp).get('/another-route');
+      expect(res.status).toBe(404);
+    }
+
+    // 101st request should be rejected with 429
+    const limitedRes = await request(rateLimitApp).get('/another-route');
+    expect(limitedRes.status).toBe(429);
+    expect(limitedRes.body.error).toBeDefined();
+    expect(limitedRes.body.error.code).toBe('RATE_LIMIT_EXCEEDED');
+  });
 });
+

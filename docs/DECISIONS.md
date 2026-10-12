@@ -65,3 +65,19 @@ This document records the architectural decisions, defaults, and assumptions mad
   - Default model: `gemini-3.5-flash` (`GEMINI_MODEL`)
   - Fast model: `gemini-3.1-flash-lite` (`GEMINI_MODEL_FAST`)
 - **Retirement Deprecation Guard:** Startup warning emitted if any model name starts with `gemini-2.5`, noting that Gemini 2.5 models retire on 16 October 2026.
+
+## 8. Foundation Cleanup & Hardening (Prompt 1D)
+- **Strict Database URL Isolation:**
+  - The API runtime uses `DATABASE_URL` (pooled connection).
+  - The migration runner uses `DATABASE_URL_UNPOOLED` ONLY.
+  - Removed all pooled/unpooled fallback preprocess logic from `apiEnvSchema`. The migration runner fails with a clear descriptive error if `DATABASE_URL_UNPOOLED` is missing and never falls back to `DATABASE_URL` in any environment.
+  - Removed redundant `DATABASE_URL_POOLED` variable everywhere.
+  - Retained harmless quote-stripping sanitization across all database URLs.
+- **Probe Rate Limiting Bypass:**
+  - `GET /health` and `GET /ready` endpoints are excluded from the global Express rate limiter via the `skip` predicate to ensure monitoring systems, liveness/readiness probes, and load balancers are never throttled.
+  - All other routes remain subject to the global 100 requests per 15-minute window limiter.
+- **ESLint Flat Config Migration:**
+  - Migrated `apps/web` from deprecated `next lint` to the ESLint CLI (`eslint "src/**/*.{ts,tsx}"`).
+  - Added `apps/web/eslint.config.mjs` flat configuration with `@next/eslint-plugin-next` core-web-vitals rules, eliminating the "Next.js plugin was not detected" warning.
+- **CI Docker Build Job:**
+  - Added `build-docker-api` job to `.github/workflows/ci.yml` that builds the API Docker image (`docker build -f apps/api/Dockerfile .`) after all tests and builds pass.

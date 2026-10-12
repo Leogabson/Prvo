@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { apiEnvSchema, validateEnv, webEnvSchema } from '../env';
+import { apiEnvSchema, migrationEnvSchema, validateEnv, webEnvSchema } from '../env';
 import { BRAND_NAME, BRAND_TAGLINE, getBrandConfig } from '../brand';
 import {
   DEFAULT_GEMINI_MODEL,
@@ -65,6 +65,26 @@ describe('packages/shared: env validation', () => {
     );
   });
 
+  it('strips surrounding quotes from database URLs', () => {
+    const quotedEnv = {
+      ...validDevEnv,
+      DATABASE_URL: '"postgresql://postgres:password@localhost:5432/prvo_test?sslmode=disable"',
+      DATABASE_URL_UNPOOLED: "'postgresql://postgres:password@localhost:5432/prvo_test?sslmode=disable'",
+    };
+    const parsed = validateEnv(apiEnvSchema, quotedEnv);
+    expect(parsed.DATABASE_URL).toBe('postgresql://postgres:password@localhost:5432/prvo_test?sslmode=disable');
+    expect(parsed.DATABASE_URL_UNPOOLED).toBe('postgresql://postgres:password@localhost:5432/prvo_test?sslmode=disable');
+  });
+
+  it('does NOT fall back to DATABASE_URL when DATABASE_URL_UNPOOLED is missing in apiEnvSchema', () => {
+    const envWithoutUnpooled = { ...validDevEnv };
+    delete (envWithoutUnpooled as Record<string, unknown>).DATABASE_URL_UNPOOLED;
+
+    const parsed = validateEnv(apiEnvSchema, envWithoutUnpooled);
+    expect(parsed.DATABASE_URL).toBe(validDevEnv.DATABASE_URL);
+    expect(parsed.DATABASE_URL_UNPOOLED).toBeUndefined();
+  });
+
   it('fails fast when JWT secrets are shorter than 32 characters', () => {
     const shortSecretEnv = {
       ...validDevEnv,
@@ -113,6 +133,17 @@ describe('packages/shared: env validation', () => {
       NEXT_PUBLIC_LANDING_URL: 'https://go.prvo.app',
     });
     expect(parsed.NEXT_PUBLIC_APP_URL).toBe('https://prvo.app');
+  });
+
+  it('migrationEnvSchema requires DATABASE_URL_UNPOOLED and fails when missing', () => {
+    expect(() => validateEnv(migrationEnvSchema, {})).toThrowError(/DATABASE_URL_UNPOOLED/);
+  });
+
+  it('migrationEnvSchema passes when valid DATABASE_URL_UNPOOLED is provided', () => {
+    const parsed = validateEnv(migrationEnvSchema, {
+      DATABASE_URL_UNPOOLED: 'postgresql://postgres:password@localhost:5432/prvo_test?sslmode=disable',
+    });
+    expect(parsed.DATABASE_URL_UNPOOLED).toBe('postgresql://postgres:password@localhost:5432/prvo_test?sslmode=disable');
   });
 });
 

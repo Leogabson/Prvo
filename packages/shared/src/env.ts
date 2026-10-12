@@ -1,10 +1,10 @@
 import { z } from 'zod';
-import { DEFAULT_APP_URL, DEFAULT_API_URL, DEFAULT_LANDING_URL } from './brand';
+import { DEFAULT_APP_URL, DEFAULT_API_URL, DEFAULT_LANDING_URL } from './brand.js';
 import {
   DEFAULT_GEMINI_MODEL,
   DEFAULT_GEMINI_MODEL_FAST,
   checkGeminiModelWarnings,
-} from './ai-config';
+} from './ai-config.js';
 
 const cleanString = z.string().transform((val) => val.trim().replace(/^["']|["']$/g, ''));
 

@@ -126,3 +126,17 @@ This document records the architectural decisions, defaults, and assumptions mad
   - Application checks verify `NODE_ENV === 'test'` and throw an immediate exception if `TEST_DATABASE_URL` is missing or matches `DATABASE_URL` / `DATABASE_URL_UNPOOLED`.
   - CI includes a dedicated `postgres:16` service container with migration runs to test all endpoints end-to-end.
 
+## 11. Container Hardening & Monorepo Packaging (Prompt 2B)
+- **Shared Package ESM Compilation:**
+  - `packages/shared` compiled to standalone ESM JavaScript (`dist/index.js`) using explicit `.js` extensions in all relative imports/exports (`./brand.js`, `./ai-config.js`, etc.) so that standard Node.js runtime inside Docker containers resolves modules natively without requiring TypeScript transpilers at runtime.
+  - Added `src/env-ambient.d.ts` for ambient environment and error typing, ensuring decoupled compilation across isolated environments.
+  - Included `"files": ["dist", "src"]` in `packages/shared/package.json` so production packaging packs compiled artifacts.
+- **Strict Frozen-Lockfile Enforced:**
+  - Removed all `|| pnpm install` fallback logic in Dockerfile. A stale `pnpm-lock.yaml` will immediately fail the Docker build rather than silently installing unpinned dependencies.
+- **Root Docker Ignore:**
+  - Root `.dockerignore` excludes `node_modules`, `.next`, `dist`, `.git`, `.env`, `.env.*`, coverage, and test output, while preserving `.env.example`.
+- **Non-Root Execution & Container Healthcheck:**
+  - Runtime container runs as non-root user (`USER node`).
+  - Added Docker `HEALTHCHECK` running `wget --no-verbose --tries=1 --spider http://localhost:4000/health || exit 1`.
+
+

@@ -178,20 +178,30 @@ describe('Auth API Integration & Unit Tests', () => {
   });
 
   it('POST /auth/forgot-password and /reset-password lifecycle', async () => {
-    await request(app).post('/auth/register').send(testUser);
+    const regRes = await request(app).post('/auth/register').send(testUser);
+    const activeCookie = regRes.headers['set-cookie'];
 
     let sentResetLink = '';
     vi.spyOn(emailService, 'sendPasswordResetEmail').mockImplementation(async (_to, link) => {
       sentResetLink = link;
     });
 
+    // Known email
     const forgotRes = await request(app)
       .post('/auth/forgot-password')
       .send({ email: testUser.email });
 
     expect(forgotRes.status).toBe(200);
-    expect(forgotRes.body.message).toContain('password reset instructions');
+    expect(forgotRes.body.message).toBe('If that email is registered, we have sent password reset instructions.');
     expect(sentResetLink).toContain('token=');
+
+    // Unknown email returns the EXACT same status and message
+    const unknownForgotRes = await request(app)
+      .post('/auth/forgot-password')
+      .send({ email: 'unknown_ghost_email@prvo.test' });
+
+    expect(unknownForgotRes.status).toBe(200);
+    expect(unknownForgotRes.body.message).toBe(forgotRes.body.message);
 
     const token = new URL(sentResetLink).searchParams.get('token')!;
 
@@ -215,11 +225,34 @@ describe('Auth API Integration & Unit Tests', () => {
       .send({ email: testUser.email, password: newPass });
     expect(newLogin.status).toBe(200);
 
+    // Resetting password revokes all refresh tokens for that user
+    const refreshWithOldToken = await request(app)
+      .post('/auth/refresh')
+      .set('Cookie', activeCookie)
+      .set('Origin', 'http://localhost:3000');
+    expect(refreshWithOldToken.status).toBe(401);
+
     // Reusing the reset token fails (single use)
     const reuseReset = await request(app)
       .post('/auth/reset-password')
       .send({ token, password: 'AnotherNewPassword123!' });
     expect(reuseReset.status).toBe(400);
+
+    // Expired reset token fails
+    const expiredRawToken = 'expired-raw-token-abcdef1234567890';
+    const expiredHash = hashToken(expiredRawToken);
+    const dbUser = await db.select().from(users).where(eq(users.email, testUser.email)).limit(1);
+    await db.insert(passwordResetTokens).values({
+      userId: dbUser[0]!.id,
+      tokenHash: expiredHash,
+      expiresAt: new Date(Date.now() - 60000), // Expired 1 minute ago
+    });
+
+    const expiredAttempt = await request(app)
+      .post('/auth/reset-password')
+      .send({ token: expiredRawToken, password: 'ExpiredPasswordTry123!' });
+    expect(expiredAttempt.status).toBe(400);
+    expect(expiredAttempt.body.message).toContain('Invalid or expired password reset token');
   });
 
   it('GET /me and PATCH /me authenticated endpoints', async () => {

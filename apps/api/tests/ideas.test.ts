@@ -98,6 +98,18 @@ describe('Ideas API Integration & Authorization Tests', () => {
       .set('Authorization', `Bearer ${userBToken}`);
     expect(archiveRes.status).toBe(404);
 
+    // User B attempts POST /ideas/:id/restore -> Expect 404
+    const restoreRes = await request(app)
+      .post(`/ideas/${ideaId}/restore`)
+      .set('Authorization', `Bearer ${userBToken}`);
+    expect(restoreRes.status).toBe(404);
+
+    // User B attempts GET /ideas/:id/versions -> Expect 404
+    const versionsRes = await request(app)
+      .get(`/ideas/${ideaId}/versions`)
+      .set('Authorization', `Bearer ${userBToken}`);
+    expect(versionsRes.status).toBe(404);
+
     // User B attempts DELETE /ideas/:id -> Expect 404
     const deleteRes = await request(app)
       .delete(`/ideas/${ideaId}`)

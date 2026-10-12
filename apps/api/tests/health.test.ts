@@ -75,14 +75,19 @@ describe('API Health and Readiness Endpoints', () => {
 
   it('rate limiter enforces limit on other routes: returns 429 after the limit', async () => {
     const rateLimitApp = createApp();
+    const testIp = '198.51.100.99';
     // Send 100 requests to another route to hit the limit
     for (let i = 0; i < 100; i++) {
-      const res = await request(rateLimitApp).get('/another-route');
+      const res = await request(rateLimitApp)
+        .get('/another-route')
+        .set('X-Forwarded-For', testIp);
       expect(res.status).toBe(404);
     }
 
     // 101st request should be rejected with 429
-    const limitedRes = await request(rateLimitApp).get('/another-route');
+    const limitedRes = await request(rateLimitApp)
+      .get('/another-route')
+      .set('X-Forwarded-For', testIp);
     expect(limitedRes.status).toBe(429);
     expect(limitedRes.body.error).toBeDefined();
     expect(limitedRes.body.error.code).toBe('RATE_LIMIT_EXCEEDED');

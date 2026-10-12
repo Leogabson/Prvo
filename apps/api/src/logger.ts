@@ -6,7 +6,7 @@ const options: LoggerOptions = {
   level: process.env.LOG_LEVEL || (isProduction ? 'info' : 'debug'),
 };
 
-if (!isProduction) {
+if (process.env.PINO_PRETTY === 'true') {
   options.transport = {
     target: 'pino-pretty',
     options: {

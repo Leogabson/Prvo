@@ -1,0 +1,55 @@
+name: CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+
+jobs:
+  ci:
+    name: Install, Lint, Typecheck, Test, Build
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v3
+        with:
+          version: 12.11.2
+
+      - name: Setup Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Run linter
+        run: pnpm lint
+
+      - name: Run typecheck
+        run: pnpm typecheck
+
+      - name: Run unit & integration tests
+        run: pnpm test
+        env:
+          NODE_ENV: test
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/prvo_test?sslmode=disable
+          DATABASE_URL_UNPOOLED: postgresql://postgres:postgres@localhost:5432/prvo_test?sslmode=disable
+          APP_URL: http://localhost:3000
+          API_URL: http://localhost:4000
+          LANDING_URL: http://localhost:3001
+          JWT_ACCESS_SECRET: github_actions_ci_super_secret_access_jwt_key_32_chars
+          JWT_REFRESH_SECRET: github_actions_ci_super_secret_refresh_jwt_key_32_chars
+
+      - name: Build packages and applications
+        run: pnpm build
+        env:
+          NEXT_PUBLIC_APP_URL: https://prvo.app
+          NEXT_PUBLIC_API_URL: https://api.prvo.app
+          NEXT_PUBLIC_LANDING_URL: https://go.prvo.app

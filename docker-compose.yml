@@ -1,0 +1,17 @@
+version: '3.8'
+
+services:
+  api:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    container_name: prvo-api
+    restart: unless-stopped
+    ports:
+      - "4000:4000"
+    env_file:
+      - .env
+    environment:
+      - NODE_ENV=production
+      - PORT=4000
+    # Note: Neon PostgreSQL is cloud-hosted, so no local PostgreSQL container is configured.

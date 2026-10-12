@@ -81,3 +81,48 @@ This document records the architectural decisions, defaults, and assumptions mad
   - Added `apps/web/eslint.config.mjs` flat configuration with `@next/eslint-plugin-next` core-web-vitals rules, eliminating the "Next.js plugin was not detected" warning.
 - **CI Docker Build Job:**
   - Added `build-docker-api` job to `.github/workflows/ci.yml` that builds the API Docker image (`docker build -f apps/api/Dockerfile .`) after all tests and builds pass.
+
+## 9. Authentication, Security, and Session Management (Prompt 2)
+- **Password Security:**
+  - Passwords hashed using `@node-rs/argon2` (Argon2id, salt length 16, memoryCost 65536, timeCost 3).
+  - Enforces minimum 10 characters and checks against a common password blocklist.
+  - Constant-time verification prevents timing attacks.
+  - Generic authentication failure response ("Invalid email or password") returned identically for non-existent users and incorrect credentials.
+- **Token Architecture & Rotation:**
+  - Access tokens: Stateless HS256 JWT, 15-minute lifetime, stored strictly in memory by client app (`apps/web`), never persisted to `localStorage` or `sessionStorage`.
+  - Refresh tokens: Cryptographically secure 256-bit random tokens, 30-day lifetime, stored strictly as SHA-256 hashes in database (`refresh_tokens` table).
+  - Delivered to client via `httpOnly`, `Secure` (relaxed only when `NODE_ENV !== 'production'`), `SameSite=Strict` cookie scoped to the API host and restricted to path `/auth`.
+  - Token Rotation: Every valid `/auth/refresh` rotates the refresh token immediately, updating `replaced_by_id`.
+  - Family Reuse Detection: If an already-revoked refresh token is replayed, the entire token family is immediately revoked, protecting against compromised refresh tokens.
+  - Password Reset: Single-use token with 1-hour expiry, stored hashed. Resetting a password automatically revokes all refresh tokens across all sessions for that user.
+- **CSRF Defense:**
+  - Cookie-authenticated endpoints (`/auth/refresh`, `/auth/logout`) enforce strict Origin header validation against the allowed origin list (`APP_URL`, `LANDING_URL`, `http://localhost:3000`), rejecting invalid or missing origins with HTTP 403 Forbidden.
+- **Dedicated Rate Limiting:**
+  - `/auth/login`: 10 requests per 15-minute window per IP.
+  - `/auth/register`: 5 requests per hour per IP.
+  - `/auth/forgot-password`: 5 requests per hour per IP.
+  - Emits HTTP 429 with explicit `retryAfter` seconds and clear error structure.
+- **Email Service & Deferred Email Verification:**
+  - Implemented `EmailService` interface with `ConsoleEmailProvider` (development logging) and `ResendEmailProvider` (production delivery via Resend).
+  - Decision: Full email verification prior to activation is deferred to a future version.
+  - Trade-off & Risk Assessment: Deferring verification reduces initial onboarding friction for early-stage founders to start immediately; the trade-off is the potential risk of unverified or fake accounts. This is mitigated in the interim by rate limiting registration to 5/hour per IP, strict plan limits (3 ideas), and single-use password reset tokens requiring mailbox control.
+
+## 10. Database Schema, Plan Limits, and Idea Versioning (Prompt 2)
+- **Database Schema:**
+  - All tables (`users`, `refresh_tokens`, `password_reset_tokens`, `plan_limits`, `ideas`, `idea_versions`) use UUID primary keys and track `created_at` and `updated_at`.
+  - Foreign keys (`user_id`, `idea_id`, etc.) have dedicated database indexes for query performance.
+  - Foreign key relations to users cascade delete or retain integrity.
+- **Plan Limits Enforcement:**
+  - Stored dynamically in `plan_limits` table rather than hard-coded constants.
+  - Free plan seeded with `active_ideas = 3`.
+  - Evaluated on server side: users can have at most `limit` ideas with status "active" or "draft".
+  - When the user attempts to create or restore an idea at capacity, returns HTTP 403 with stable error code `PLAN_LIMIT_REACHED`, the active count, and the limit.
+  - Archiving or deleting an idea reduces the active count and frees a slot.
+- **Immutable Version History:**
+  - Editing an idea creates a new `idea_versions` row with incremented `version_number` and moves `ideas.current_version_id`.
+  - Historical snapshots remain immutable for auditability and future validation comparisons.
+- **Isolated Test Database:**
+  - Integration tests run strictly against `TEST_DATABASE_URL`.
+  - Application checks verify `NODE_ENV === 'test'` and throw an immediate exception if `TEST_DATABASE_URL` is missing or matches `DATABASE_URL` / `DATABASE_URL_UNPOOLED`.
+  - CI includes a dedicated `postgres:16` service container with migration runs to test all endpoints end-to-end.
+

@@ -8,6 +8,13 @@
       "when": 1728720000000,
       "tag": "0000_init_migrations_check",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1791807566254,
+      "tag": "0001_tense_quasimodo",
+      "breakpoints": true
     }
   ]
 }

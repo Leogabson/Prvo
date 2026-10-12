@@ -43,3 +43,6 @@ async function handleShutdown(signal: string) {
 
 process.on('SIGTERM', () => handleShutdown('SIGTERM'));
 process.on('SIGINT', () => handleShutdown('SIGINT'));
+process.on('unhandledRejection', (reason) => {
+  logger.error({ err: reason }, 'Unhandled Promise Rejection');
+});

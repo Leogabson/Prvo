@@ -1,13 +1,17 @@
 import express, { type Express } from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
-import rateLimit from 'express-rate-limit';
+import rateLimit, { MemoryStore } from 'express-rate-limit';
 import { pinoHttp } from 'pino-http';
 import { env } from './config/env.js';
 import { logger } from './logger.js';
 import { requestIdMiddleware } from './middleware/request-id.js';
 import { errorHandler } from './middleware/error-handler.js';
+import cookieParser from 'cookie-parser';
 import { healthRouter } from './routes/health.js';
+import { authRouter } from './routes/auth.js';
+import { meRouter } from './routes/me.js';
+import { ideasRouter } from './routes/ideas.js';
 import { NotFoundError } from '@prvo/shared';
 
 export function createApp(): Express {
@@ -51,7 +55,7 @@ export function createApp(): Express {
         if (allowedOrigins.includes(origin)) {
           return callback(null, true);
         }
-        return callback(new Error(`CORS origin not allowed: ${origin}`));
+        return callback(null, false);
       },
       credentials: true,
       methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
@@ -61,6 +65,7 @@ export function createApp(): Express {
 
   // Global rate limiter (excluding GET /health and GET /ready)
   const limiter = rateLimit({
+    store: new MemoryStore(),
     windowMs: 15 * 60 * 1000, // 15 minutes
     max: 100, // Limit each IP to 100 requests per window
     standardHeaders: true,
@@ -76,12 +81,16 @@ export function createApp(): Express {
   });
   app.use(limiter);
 
-  // Body parsing
+  // Body parsing and cookies
+  app.use(cookieParser());
   app.use(express.json({ limit: '1mb' }));
   app.use(express.urlencoded({ extended: true, limit: '1mb' }));
 
   // Routes
   app.use('/', healthRouter);
+  app.use('/auth', authRouter);
+  app.use('/me', meRouter);
+  app.use('/ideas', ideasRouter);
 
   // 404 handler
   app.use((req, _res, next) => {

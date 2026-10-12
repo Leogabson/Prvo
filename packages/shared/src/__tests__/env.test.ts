@@ -116,6 +116,7 @@ describe('packages/shared: env validation', () => {
       BRAVE_API_KEY: 'brave-12345',
       GOOGLE_CLIENT_ID: 'google-client-id',
       GOOGLE_CLIENT_SECRET: 'google-client-secret',
+      RESEND_API_KEY: 're_test_key_12345',
     };
 
     const parsed = validateEnv(apiEnvSchema, fullProdEnv);
@@ -123,6 +124,53 @@ describe('packages/shared: env validation', () => {
     expect(parsed.GEMINI_API_KEY).toBe('test-gemini-api-key');
     expect(parsed.GEMINI_MODEL).toBe(DEFAULT_GEMINI_MODEL);
     expect(parsed.GEMINI_MODEL_FAST).toBe(DEFAULT_GEMINI_MODEL_FAST);
+  });
+
+  it('fails in test mode if TEST_DATABASE_URL is missing', () => {
+    const testEnvWithoutTestDb = {
+      ...validDevEnv,
+      NODE_ENV: 'test',
+    };
+
+    expect(() => validateEnv(apiEnvSchema, testEnvWithoutTestDb)).toThrowError(
+      /TEST_DATABASE_URL is required when NODE_ENV is "test"/,
+    );
+  });
+
+  it('fails in test mode if TEST_DATABASE_URL equals DATABASE_URL', () => {
+    const collidingTestEnv = {
+      ...validDevEnv,
+      NODE_ENV: 'test',
+      TEST_DATABASE_URL: validDevEnv.DATABASE_URL,
+    };
+
+    expect(() => validateEnv(apiEnvSchema, collidingTestEnv)).toThrowError(
+      /TEST_DATABASE_URL must not equal DATABASE_URL/,
+    );
+  });
+
+  it('fails in test mode if TEST_DATABASE_URL equals DATABASE_URL_UNPOOLED', () => {
+    const collidingUnpooledEnv = {
+      ...validDevEnv,
+      NODE_ENV: 'test',
+      DATABASE_URL_UNPOOLED: 'postgresql://postgres:password@localhost:5432/unpooled?sslmode=disable',
+      TEST_DATABASE_URL: 'postgresql://postgres:password@localhost:5432/unpooled?sslmode=disable',
+    };
+
+    expect(() => validateEnv(apiEnvSchema, collidingUnpooledEnv)).toThrowError(
+      /TEST_DATABASE_URL must not equal DATABASE_URL_UNPOOLED/,
+    );
+  });
+
+  it('passes in test mode when TEST_DATABASE_URL is isolated', () => {
+    const validTestEnv = {
+      ...validDevEnv,
+      NODE_ENV: 'test',
+      TEST_DATABASE_URL: 'postgresql://postgres:password@localhost:5432/isolated_test_db?sslmode=disable',
+    };
+
+    const parsed = validateEnv(apiEnvSchema, validTestEnv);
+    expect(parsed.TEST_DATABASE_URL).toBe('postgresql://postgres:password@localhost:5432/isolated_test_db?sslmode=disable');
   });
 
   it('validates web env schema correctly', () => {

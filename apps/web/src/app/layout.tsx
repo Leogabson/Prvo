@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import { Fraunces, Instrument_Sans, IBM_Plex_Mono } from 'next/font/google';
 import './globals.css';
 import { BRAND_NAME, BRAND_TAGLINE } from '@prvo/shared';
+import { Providers } from '@/components/providers';
 
 const fraunces = Fraunces({
   subsets: ['latin'],
@@ -43,7 +44,7 @@ export default function RootLayout({
       suppressHydrationWarning
     >
       <body className="min-h-screen bg-paper text-ink font-sans selection:bg-stone">
-        {children}
+        <Providers>{children}</Providers>
       </body>
     </html>
   );

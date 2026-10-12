@@ -53,47 +53,78 @@ export const apiEnvSchema = z.object({
     .pipe(z.number().int().positive().max(65535)),
   DATABASE_URL: postgresUrlSchema,
   DATABASE_URL_UNPOOLED: postgresUrlSchema.optional(),
-    APP_URL: urlSchema.default(DEFAULT_APP_URL),
-    API_URL: urlSchema.default(DEFAULT_API_URL),
-    LANDING_URL: urlSchema.default(DEFAULT_LANDING_URL),
-    JWT_ACCESS_SECRET: z.string().min(32, 'JWT_ACCESS_SECRET must be at least 32 characters long'),
-    JWT_REFRESH_SECRET: z.string().min(32, 'JWT_REFRESH_SECRET must be at least 32 characters long'),
+  TEST_DATABASE_URL: postgresUrlSchema.optional(),
+  APP_URL: urlSchema.default(DEFAULT_APP_URL),
+  API_URL: urlSchema.default(DEFAULT_API_URL),
+  LANDING_URL: urlSchema.default(DEFAULT_LANDING_URL),
+  JWT_ACCESS_SECRET: z.string().min(32, 'JWT_ACCESS_SECRET must be at least 32 characters long'),
+  JWT_REFRESH_SECRET: z.string().min(32, 'JWT_REFRESH_SECRET must be at least 32 characters long'),
 
-    // Google Gemini AI configuration (optional in dev, required in production)
-    GEMINI_API_KEY: z.string().optional(),
-    GEMINI_MODEL: z.string().default(DEFAULT_GEMINI_MODEL),
-    GEMINI_MODEL_FAST: z.string().default(DEFAULT_GEMINI_MODEL_FAST),
+  // Email service
+  EMAIL_FROM: cleanString.default('Prvo <notifications@prvo.app>'),
+  RESEND_API_KEY: z.string().optional(),
 
-    // Search and OAuth providers
-    TAVILY_API_KEY: z.string().optional(),
-    BRAVE_API_KEY: z.string().optional(),
-    GOOGLE_CLIENT_ID: z.string().optional(),
-    GOOGLE_CLIENT_SECRET: z.string().optional(),
-  })
-  .superRefine((data, ctx) => {
-    if (data.NODE_ENV === 'production') {
-      const requiredInProd: (keyof typeof data)[] = [
-        'GEMINI_API_KEY',
-        'GEMINI_MODEL',
-        'GEMINI_MODEL_FAST',
-        'TAVILY_API_KEY',
-        'BRAVE_API_KEY',
-        'GOOGLE_CLIENT_ID',
-        'GOOGLE_CLIENT_SECRET',
-      ];
+  // Google Gemini AI configuration (optional in dev, required in production)
+  GEMINI_API_KEY: z.string().optional(),
+  GEMINI_MODEL: z.string().default(DEFAULT_GEMINI_MODEL),
+  GEMINI_MODEL_FAST: z.string().default(DEFAULT_GEMINI_MODEL_FAST),
 
-      for (const key of requiredInProd) {
-        const val = data[key];
-        if (typeof val !== 'string' || val.trim().length === 0) {
-          ctx.addIssue({
-            code: z.ZodIssueCode.custom,
-            path: [key],
-            message: `${key} is mandatory when NODE_ENV is 'production'`,
-          });
-        }
+  // Search and OAuth providers
+  TAVILY_API_KEY: z.string().optional(),
+  BRAVE_API_KEY: z.string().optional(),
+  GOOGLE_CLIENT_ID: z.string().optional(),
+  GOOGLE_CLIENT_SECRET: z.string().optional(),
+})
+.superRefine((data, ctx) => {
+  if (data.NODE_ENV === 'test') {
+    if (!data.TEST_DATABASE_URL || data.TEST_DATABASE_URL.trim().length === 0) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['TEST_DATABASE_URL'],
+        message: 'TEST_DATABASE_URL is required when NODE_ENV is "test" for the test suite',
+      });
+    } else {
+      if (data.TEST_DATABASE_URL === data.DATABASE_URL) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ['TEST_DATABASE_URL'],
+          message: 'TEST_DATABASE_URL must not equal DATABASE_URL. Integration tests must run against an isolated test database.',
+        });
+      }
+      if (data.DATABASE_URL_UNPOOLED && data.TEST_DATABASE_URL === data.DATABASE_URL_UNPOOLED) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ['TEST_DATABASE_URL'],
+          message: 'TEST_DATABASE_URL must not equal DATABASE_URL_UNPOOLED. Integration tests must run against an isolated test database.',
+        });
       }
     }
-  });
+  }
+
+  if (data.NODE_ENV === 'production') {
+    const requiredInProd: (keyof typeof data)[] = [
+      'GEMINI_API_KEY',
+      'GEMINI_MODEL',
+      'GEMINI_MODEL_FAST',
+      'TAVILY_API_KEY',
+      'BRAVE_API_KEY',
+      'GOOGLE_CLIENT_ID',
+      'GOOGLE_CLIENT_SECRET',
+      'RESEND_API_KEY',
+    ];
+
+    for (const key of requiredInProd) {
+      const val = data[key];
+      if (typeof val !== 'string' || val.trim().length === 0) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: [key],
+          message: `${key} is mandatory when NODE_ENV is 'production'`,
+        });
+      }
+    }
+  }
+});
 
 export type ApiEnv = z.infer<typeof apiEnvSchema>;
 

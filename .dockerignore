@@ -1,0 +1,11 @@
+node_modules
+.git
+.next
+dist
+.env
+.env.*
+!.env.example
+apps/api/scripts
+apps/api/tests
+apps/web/src/__tests__
+packages/shared/src/__tests__

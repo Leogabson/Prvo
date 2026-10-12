@@ -9,6 +9,8 @@ const buttonVariants = cva(
       variant: {
         default:
           'bg-vermilion text-vermilion-text hover:bg-vermilion-hover active:opacity-95 shadow-subtle',
+        primary:
+          'bg-vermilion text-vermilion-text hover:bg-vermilion-hover active:opacity-95 shadow-subtle',
         secondary:
           'bg-stone-card text-ink border border-stone-border hover:bg-stone active:opacity-95',
         outline:

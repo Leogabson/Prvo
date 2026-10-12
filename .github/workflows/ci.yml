@@ -9,7 +9,20 @@ on:
 jobs:
   ci:
     name: Install, Lint, Typecheck, Test, Build
-    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres_ci_password
+          POSTGRES_DB: prvo_ci_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
 
     steps:
       - name: Checkout repository
@@ -35,17 +48,29 @@ jobs:
       - name: Run typecheck
         run: pnpm typecheck
 
+      - name: Run database migrations for CI test service
+        run: pnpm --filter @prvo/api db:migrate
+        env:
+          NODE_ENV: test
+          DATABASE_URL_UNPOOLED: postgresql://postgres:postgres_ci_password@localhost:5432/prvo_ci_test?sslmode=disable
+          DATABASE_URL: postgresql://postgres:postgres_ci_password@localhost:5432/prvo_ci_test?sslmode=disable
+          TEST_DATABASE_URL: postgresql://postgres:postgres_ci_password@localhost:5432/prvo_ci_test?sslmode=disable
+          JWT_ACCESS_SECRET: github_actions_ci_super_secret_access_jwt_key_32_chars
+          JWT_REFRESH_SECRET: github_actions_ci_super_secret_refresh_jwt_key_32_chars
+
       - name: Run unit & integration tests
         run: pnpm test
         env:
           NODE_ENV: test
-          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/prvo_test?sslmode=disable
-          DATABASE_URL_UNPOOLED: postgresql://postgres:postgres@localhost:5432/prvo_test?sslmode=disable
+          TEST_DATABASE_URL: postgresql://postgres:postgres_ci_password@localhost:5432/prvo_ci_test?sslmode=disable
+          DATABASE_URL: postgresql://postgres:postgres_ci_password@localhost:5432/prvo_ci_prod_mock?sslmode=disable
+          DATABASE_URL_UNPOOLED: postgresql://postgres:postgres_ci_password@localhost:5432/prvo_ci_unpooled_mock?sslmode=disable
           APP_URL: http://localhost:3000
           API_URL: http://localhost:4000
           LANDING_URL: http://localhost:3001
           JWT_ACCESS_SECRET: github_actions_ci_super_secret_access_jwt_key_32_chars
           JWT_REFRESH_SECRET: github_actions_ci_super_secret_refresh_jwt_key_32_chars
+          EMAIL_FROM: Prvo Verification <no-reply@prvo.app>
 
       - name: Build packages and applications
         run: pnpm build

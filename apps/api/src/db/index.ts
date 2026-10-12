@@ -4,13 +4,29 @@ import { env } from '../config/env.js';
 import { logger } from '../logger.js';
 import * as schema from './schema.js';
 
+// Resolve active database URL based on environment
+function resolveDatabaseUrl(): string {
+  if (env.NODE_ENV === 'test') {
+    if (!env.TEST_DATABASE_URL) {
+      throw new Error('TEST_DATABASE_URL is not set! Integration tests require a dedicated test database.');
+    }
+    if (env.TEST_DATABASE_URL === env.DATABASE_URL || (env.DATABASE_URL_UNPOOLED && env.TEST_DATABASE_URL === env.DATABASE_URL_UNPOOLED)) {
+      throw new Error('Refusing to run tests: TEST_DATABASE_URL equals DATABASE_URL or DATABASE_URL_UNPOOLED');
+    }
+    return env.TEST_DATABASE_URL;
+  }
+  return env.DATABASE_URL;
+}
+
+export const activeDatabaseUrl = resolveDatabaseUrl();
+
 /**
- * Runtime database client using pooled connection string (DATABASE_URL)
+ * Runtime database client using pooled connection string or test database
  */
-export const queryClient = postgres(env.DATABASE_URL, {
+export const queryClient = postgres(activeDatabaseUrl, {
   max: 10,
-  idle_timeout: 20,
-  connect_timeout: 10,
+  idle_timeout: 30,
+  connect_timeout: 30,
   prepare: false, // Recommended for Neon connection pooling / PgBouncer
   onnotice: () => {}, // Suppress notices
 });

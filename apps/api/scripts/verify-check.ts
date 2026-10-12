@@ -1,4 +1,4 @@
-import { queryClient } from './index.js';
+import { queryClient } from '../src/db/index.js';
 
 async function verify() {
   console.log('🔍 Querying information_schema and _migrations_check table...');

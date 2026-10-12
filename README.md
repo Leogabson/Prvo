@@ -48,8 +48,9 @@ cp .env.example .env
 | `NODE_ENV` | No | Environment mode | `development` |
 | `JWT_ACCESS_SECRET` | Yes | Minimum 32-character token secret | `[32+ character random secret]` |
 | `JWT_REFRESH_SECRET` | Yes | Minimum 32-character refresh token secret | `[32+ character random secret]` |
-| `ANTHROPIC_API_KEY` | Prod only | Claude API integration key | `sk-ant-...` |
-| `ANTHROPIC_MODEL` | No | Model version | `claude-3-5-sonnet-20241022` |
+| `GEMINI_API_KEY` | Prod only | Google Gemini API key | `...` |
+| `GEMINI_MODEL` | No | Model name (AI provider: Google Gemini behind an LLMService interface; model names come from env.) | `gemini-3.5-flash` |
+| `GEMINI_MODEL_FAST` | No | Fast model name | `gemini-3.1-flash-lite` |
 | `TAVILY_API_KEY` | Prod only | Web search provider key | `tvly-...` |
 | `BRAVE_API_KEY` | Prod only | Brave Search API key | `...` |
 | `GOOGLE_CLIENT_ID` | Prod only | Google OAuth Client ID | `...` |

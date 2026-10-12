@@ -1,6 +1,12 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { apiEnvSchema, validateEnv, webEnvSchema } from '../env';
 import { BRAND_NAME, BRAND_TAGLINE, getBrandConfig } from '../brand';
+import {
+  DEFAULT_GEMINI_MODEL,
+  DEFAULT_GEMINI_MODEL_FAST,
+  GEMINI_RETIREMENT_MESSAGE,
+  checkGeminiModelWarnings,
+} from '../ai-config';
 
 describe('packages/shared: brand', () => {
   it('exports correct single source of truth brand constants', () => {
@@ -42,10 +48,12 @@ describe('packages/shared: env validation', () => {
     JWT_REFRESH_SECRET: 'a_very_secure_and_long_jwt_refresh_secret_123456789',
   };
 
-  it('validates a correct development configuration', () => {
+  it('validates a correct development configuration and applies Gemini defaults', () => {
     const parsed = validateEnv(apiEnvSchema, validDevEnv);
     expect(parsed.PORT).toBe(4000);
     expect(parsed.NODE_ENV).toBe('development');
+    expect(parsed.GEMINI_MODEL).toBe(DEFAULT_GEMINI_MODEL);
+    expect(parsed.GEMINI_MODEL_FAST).toBe(DEFAULT_GEMINI_MODEL_FAST);
   });
 
   it('fails fast when required fields are missing', () => {
@@ -68,22 +76,22 @@ describe('packages/shared: env validation', () => {
     );
   });
 
-  it('requires AI and provider keys in production mode', () => {
-    const prodWithoutAi = {
+  it('requires GEMINI_API_KEY and provider keys in production mode', () => {
+    const prodWithoutGemini = {
       ...validDevEnv,
       NODE_ENV: 'production',
     };
 
-    expect(() => validateEnv(apiEnvSchema, prodWithoutAi)).toThrowError(
-      /ANTHROPIC_API_KEY is mandatory when NODE_ENV is 'production'/,
+    expect(() => validateEnv(apiEnvSchema, prodWithoutGemini)).toThrowError(
+      /GEMINI_API_KEY is mandatory when NODE_ENV is 'production'/,
     );
   });
 
-  it('passes in production mode when all provider keys are present', () => {
+  it('passes in production mode when all provider keys including GEMINI_API_KEY are present', () => {
     const fullProdEnv = {
       ...validDevEnv,
       NODE_ENV: 'production',
-      ANTHROPIC_API_KEY: 'sk-ant-12345',
+      GEMINI_API_KEY: 'test-gemini-api-key',
       TAVILY_API_KEY: 'tvly-12345',
       BRAVE_API_KEY: 'brave-12345',
       GOOGLE_CLIENT_ID: 'google-client-id',
@@ -92,7 +100,9 @@ describe('packages/shared: env validation', () => {
 
     const parsed = validateEnv(apiEnvSchema, fullProdEnv);
     expect(parsed.NODE_ENV).toBe('production');
-    expect(parsed.ANTHROPIC_API_KEY).toBe('sk-ant-12345');
+    expect(parsed.GEMINI_API_KEY).toBe('test-gemini-api-key');
+    expect(parsed.GEMINI_MODEL).toBe(DEFAULT_GEMINI_MODEL);
+    expect(parsed.GEMINI_MODEL_FAST).toBe(DEFAULT_GEMINI_MODEL_FAST);
   });
 
   it('validates web env schema correctly', () => {
@@ -103,5 +113,32 @@ describe('packages/shared: env validation', () => {
       NEXT_PUBLIC_LANDING_URL: 'https://go.prvo.app',
     });
     expect(parsed.NEXT_PUBLIC_APP_URL).toBe('https://prvo.app');
+  });
+});
+
+describe('packages/shared: Gemini 2.5 retirement warning', () => {
+  it('emits a warning when GEMINI_MODEL starts with gemini-2.5 without throwing an error', () => {
+    const warnFn = vi.fn();
+    const warnings = checkGeminiModelWarnings('gemini-2.5-flash', 'gemini-3.1-flash-lite', warnFn);
+
+    expect(warnings.length).toBe(1);
+    expect(warnings[0]).toContain(GEMINI_RETIREMENT_MESSAGE);
+    expect(warnFn).toHaveBeenCalledWith(expect.stringContaining(GEMINI_RETIREMENT_MESSAGE));
+  });
+
+  it('emits warnings when both GEMINI_MODEL and GEMINI_MODEL_FAST start with gemini-2.5', () => {
+    const warnFn = vi.fn();
+    const warnings = checkGeminiModelWarnings('gemini-2.5-pro', 'gemini-2.5-flash-lite', warnFn);
+
+    expect(warnings.length).toBe(2);
+    expect(warnFn).toHaveBeenCalledTimes(2);
+  });
+
+  it('does not emit warnings when models are Gemini 3.x or newer', () => {
+    const warnFn = vi.fn();
+    const warnings = checkGeminiModelWarnings(DEFAULT_GEMINI_MODEL, DEFAULT_GEMINI_MODEL_FAST, warnFn);
+
+    expect(warnings.length).toBe(0);
+    expect(warnFn).not.toHaveBeenCalled();
   });
 });

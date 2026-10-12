@@ -1,5 +1,10 @@
 import { z } from 'zod';
 import { DEFAULT_APP_URL, DEFAULT_API_URL, DEFAULT_LANDING_URL } from './brand';
+import {
+  DEFAULT_GEMINI_MODEL,
+  DEFAULT_GEMINI_MODEL_FAST,
+  checkGeminiModelWarnings,
+} from './ai-config';
 
 const cleanString = z.string().transform((val) => val.trim().replace(/^["']|["']$/g, ''));
 
@@ -70,19 +75,23 @@ export const apiEnvSchema = z
     JWT_ACCESS_SECRET: z.string().min(32, 'JWT_ACCESS_SECRET must be at least 32 characters long'),
     JWT_REFRESH_SECRET: z.string().min(32, 'JWT_REFRESH_SECRET must be at least 32 characters long'),
 
-    // Optional in development/test, but required in production
-    ANTHROPIC_API_KEY: z.string().optional(),
-    ANTHROPIC_MODEL: z.string().default('claude-3-5-sonnet-20241022'),
+    // Google Gemini AI configuration (optional in dev, required in production)
+    GEMINI_API_KEY: z.string().optional(),
+    GEMINI_MODEL: z.string().default(DEFAULT_GEMINI_MODEL),
+    GEMINI_MODEL_FAST: z.string().default(DEFAULT_GEMINI_MODEL_FAST),
+
+    // Search and OAuth providers
     TAVILY_API_KEY: z.string().optional(),
     BRAVE_API_KEY: z.string().optional(),
     GOOGLE_CLIENT_ID: z.string().optional(),
     GOOGLE_CLIENT_SECRET: z.string().optional(),
-  }),
-)
+  }))
   .superRefine((data, ctx) => {
     if (data.NODE_ENV === 'production') {
       const requiredInProd: (keyof typeof data)[] = [
-        'ANTHROPIC_API_KEY',
+        'GEMINI_API_KEY',
+        'GEMINI_MODEL',
+        'GEMINI_MODEL_FAST',
         'TAVILY_API_KEY',
         'BRAVE_API_KEY',
         'GOOGLE_CLIENT_ID',
@@ -118,6 +127,7 @@ export type WebEnv = z.infer<typeof webEnvSchema>;
 
 /**
  * Validates environment variables against a schema and throws descriptive, formatted error if invalid.
+ * Also triggers model deprecation warning check if Gemini models are present.
  */
 export function validateEnv<T extends z.ZodTypeAny>(
   schema: T,
@@ -136,5 +146,19 @@ export function validateEnv<T extends z.ZodTypeAny>(
     throw new Error(errorMessage);
   }
 
-  return result.data;
+  const data = result.data;
+
+  // Check for retiring Gemini 2.5 models and emit startup warning
+  if (data && typeof data === 'object') {
+    const geminiModel = (data as Record<string, unknown>).GEMINI_MODEL;
+    const geminiModelFast = (data as Record<string, unknown>).GEMINI_MODEL_FAST;
+    if (typeof geminiModel === 'string' || typeof geminiModelFast === 'string') {
+      checkGeminiModelWarnings(
+        typeof geminiModel === 'string' ? geminiModel : undefined,
+        typeof geminiModelFast === 'string' ? geminiModelFast : undefined,
+      );
+    }
+  }
+
+  return data;
 }

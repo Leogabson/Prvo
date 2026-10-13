@@ -15,6 +15,7 @@ RUN pnpm --filter @prvo/api --prod deploy /app/pruned
 
 FROM node:20-alpine AS runner
 WORKDIR /app
+# Default NODE_ENV to production; an env file (e.g. via --env-file) may override this
 ENV NODE_ENV=production
 
 COPY --from=builder /app/pruned ./
